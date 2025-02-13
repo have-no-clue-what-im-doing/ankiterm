@@ -3,8 +3,10 @@ package streamrv
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"golang.org/x/term"
 
 	"github.com/pluveto/ankiterm/x/automata"
@@ -21,6 +23,10 @@ func Execute(am *automata.Automata, deck string) {
 		panic("deck is empty")
 	}
 
+	// Create a channel to capture SIGINT (Ctrl+C)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT) // Capture SIGINT
+
 	err := am.StartReview(deck)
 	if err != nil {
 		panic(err)
@@ -28,40 +34,49 @@ func Execute(am *automata.Automata, deck string) {
 	defer am.StopReview()
 
 	for {
-		card, err := am.NextCard()
-		if err != nil {
-			if strings.Contains(err.Error(), "Gui review is not currently active") {
-				fmt.Println("Congratulations! You have finished all cards.")
-				return
-			}
-			panic(err)
-		}
-
-		clearScreen()
-
-		fmt.Printf("\n[REVIEW MODE]\n")
-		fmt.Println(format(card.Question))
-		fmt.Println("\n[Press any key to Show Answer]")
-
-		awaitAnyKey()
-		fmt.Print("\n---\n")
-		fmt.Println(format(card.Answer))
-
-		lookup := []string{"Again", "Hard", "Good", "Easy"}
-		for i, button := range card.Buttons {
-			fmt.Printf("[%d] %s (%s)\n", button, lookup[i], card.NextReviews[i])
-		}
-
-		action := awaitAction(am.CurrentCard().Buttons)
-		switch code := action.GetCode(); code {
-		case reviewer.ActionAbort:
+		select {
+		case <-sigChan: // Handle Ctrl+C
+			fmt.Println("\nExiting...")
 			return
-		case reviewer.ActionSkip:
-			continue
-		case reviewer.ActionAnswer:
-			am.AnswerCard(action.(reviewer.AnswerAction).CardEase)
 		default:
-			panic("unknown action code")
+			card, err := am.NextCard()
+			if err != nil {
+				if strings.Contains(err.Error(), "Gui review is not currently active") {
+					fmt.Println("Congratulations! You have finished all cards.")
+					return
+				}
+				panic(err)
+			}
+
+			clearScreen()
+
+			fmt.Printf("\n[REVIEW MODE]\n")
+			fmt.Println(format(card.Question))
+			fmt.Println("\n[Press any key to Show Answer]")
+
+			// Wait for any key to continue
+			awaitAnyKey()
+
+			// Now show the answer and options
+			fmt.Print("\n---\n")
+			fmt.Println(format(card.Answer))
+
+			lookup := []string{"Again", "Hard", "Good", "Easy"}
+			for i, button := range card.Buttons {
+				fmt.Printf("[%d] %s (%s)\n", button, lookup[i], card.NextReviews[i])
+			}
+
+			action := awaitAction(am.CurrentCard().Buttons)
+			switch code := action.GetCode(); code {
+			case reviewer.ActionAbort:
+				return
+			case reviewer.ActionSkip:
+				continue
+			case reviewer.ActionAnswer:
+				am.AnswerCard(action.(reviewer.AnswerAction).CardEase)
+			default:
+				panic("unknown action code")
+			}
 		}
 	}
 }
