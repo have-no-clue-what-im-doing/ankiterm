@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"golang.org/x/term"
 
 	"github.com/pluveto/ankiterm/x/automata"
 	"github.com/pluveto/ankiterm/x/reviewer"
@@ -23,19 +22,19 @@ func Execute(am *automata.Automata, deck string) {
 		panic("deck is empty")
 	}
 
-	// Create a channel to capture SIGINT (Ctrl+C)
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT) // Capture SIGINT
-
 	err := am.StartReview(deck)
 	if err != nil {
 		panic(err)
 	}
 	defer am.StopReview()
 
+	// Set up signal handling to exit cleanly on Ctrl+C
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, syscall.SIGINT)
+
 	for {
 		select {
-		case <-sigChan: // Handle Ctrl+C
+		case <-signalChannel:
 			fmt.Println("\nExiting...")
 			return
 		default:
@@ -47,17 +46,16 @@ func Execute(am *automata.Automata, deck string) {
 				}
 				panic(err)
 			}
-
-			clearScreen()
+			if err != nil {
+				fmt.Println("No more cards.")
+				return
+			}
 
 			fmt.Printf("\n[REVIEW MODE]\n")
 			fmt.Println(format(card.Question))
-			fmt.Println("\n[Press any key to Show Answer]")
+			fmt.Println("\n[ENTER] Show Answer")
 
-			// Wait for any key to continue
-			awaitAnyKey()
-
-			// Now show the answer and options
+			awaitEnter()
 			fmt.Print("\n---\n")
 			fmt.Println(format(card.Answer))
 
@@ -81,46 +79,22 @@ func Execute(am *automata.Automata, deck string) {
 	}
 }
 
-// Clears the screen
-func clearScreen() {
-	fmt.Print("\033[H\033[2J")
+func awaitEnter() {
+	var input string
+	fmt.Scanln(&input)
 }
 
-// Reads a single key press without requiring ENTER
-func awaitAnyKey() {
-	fd := int(os.Stdin.Fd())
-	oldState, err := term.MakeRaw(fd)
-	if err != nil {
-		panic(err)
-	}
-	defer term.Restore(fd, oldState)
-
-	var b [1]byte
-	os.Stdin.Read(b[:]) // Read one key
-}
-
-// Reads a single key press for selecting 1-4 without requiring ENTER
 func awaitAction(validRange []int) reviewer.Action {
 	fmt.Print("Enter choice (1-4): ")
+	var input string
+	fmt.Scanln(&input)
 
-	fd := int(os.Stdin.Fd())
-	oldState, err := term.MakeRaw(fd)
-	if err != nil {
-		panic(err)
-	}
-	defer term.Restore(fd, oldState)
-
-	var b [1]byte
-	os.Stdin.Read(b[:]) // Read single character
-	input := string(b[:])
-
-	// Convert input to integer
+	// try parse int
 	i, err := strconv.Atoi(input)
 	if err != nil || !xslices.Contains(validRange, i) {
-		fmt.Printf("\nInvalid input \"%s\", try again.\n", input)
+		fmt.Printf("invalid input \"%s\" out of range, try again: \n", input)
 		return awaitAction(validRange)
 	}
-
 	return reviewer.ActionFromString(input)
 }
 
