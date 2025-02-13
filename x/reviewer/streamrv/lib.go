@@ -2,8 +2,10 @@ package streamrv
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
+	"golang.org/x/term"
 
 	"github.com/pluveto/ankiterm/x/automata"
 	"github.com/pluveto/ankiterm/x/reviewer"
@@ -34,16 +36,14 @@ func Execute(am *automata.Automata, deck string) {
 			}
 			panic(err)
 		}
-		if err != nil {
-			fmt.Println("No more cards.")
-			return
-		}
+
+		clearScreen()
 
 		fmt.Printf("\n[REVIEW MODE]\n")
 		fmt.Println(format(card.Question))
-		fmt.Println("\n[ENTER] Show Answer")
+		fmt.Println("\n[Press any key to Show Answer]")
 
-		awaitEnter()
+		awaitAnyKey()
 		fmt.Print("\n---\n")
 		fmt.Println(format(card.Answer))
 
@@ -66,22 +66,46 @@ func Execute(am *automata.Automata, deck string) {
 	}
 }
 
-func awaitEnter() {
-	var input string
-	fmt.Scanln(&input)
+// Clears the screen
+func clearScreen() {
+	fmt.Print("\033[H\033[2J")
 }
 
-func awaitAction(validRange []int) reviewer.Action {
-	print("awaitAction")
-	var input string
-	fmt.Scanln(&input)
+// Reads a single key press without requiring ENTER
+func awaitAnyKey() {
+	fd := int(os.Stdin.Fd())
+	oldState, err := term.MakeRaw(fd)
+	if err != nil {
+		panic(err)
+	}
+	defer term.Restore(fd, oldState)
 
-	// try parse int
+	var b [1]byte
+	os.Stdin.Read(b[:]) // Read one key
+}
+
+// Reads a single key press for selecting 1-4 without requiring ENTER
+func awaitAction(validRange []int) reviewer.Action {
+	fmt.Print("Enter choice (1-4): ")
+
+	fd := int(os.Stdin.Fd())
+	oldState, err := term.MakeRaw(fd)
+	if err != nil {
+		panic(err)
+	}
+	defer term.Restore(fd, oldState)
+
+	var b [1]byte
+	os.Stdin.Read(b[:]) // Read single character
+	input := string(b[:])
+
+	// Convert input to integer
 	i, err := strconv.Atoi(input)
 	if err != nil || !xslices.Contains(validRange, i) {
-		fmt.Printf("invalid input \"%s\" out of range, try again: \n", input)
+		fmt.Printf("\nInvalid input \"%s\", try again.\n", input)
 		return awaitAction(validRange)
 	}
+
 	return reviewer.ActionFromString(input)
 }
 
