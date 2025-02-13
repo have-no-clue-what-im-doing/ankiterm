@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"os/exec"
 
 	"github.com/pluveto/ankiterm/x/automata"
 	"github.com/pluveto/ankiterm/x/reviewer"
@@ -51,11 +52,14 @@ func Execute(am *automata.Automata, deck string) {
 				return
 			}
 
+			// Clear the screen after each card
+			clearScreen()
+
 			fmt.Printf("\n[REVIEW MODE]\n")
 			fmt.Println(format(card.Question))
-			fmt.Println("\n[ENTER] Show Answer")
-
+			fmt.Println("\n[Press any key to Show Answer]")
 			awaitEnter()
+
 			fmt.Print("\n---\n")
 			fmt.Println(format(card.Answer))
 
@@ -79,20 +83,29 @@ func Execute(am *automata.Automata, deck string) {
 	}
 }
 
+// Function to clear the terminal screen
+func clearScreen() {
+	cmd := exec.Command("clear") // for Unix/Linux
+	cmd.Stdout = os.Stdout
+	cmd.Run()
+}
+
 func awaitEnter() {
+	// Wait for any key press to continue
 	var input string
-	fmt.Scanln(&input)
+	fmt.Scanf("%s", &input)
 }
 
 func awaitAction(validRange []int) reviewer.Action {
+	// No extra Enter key needed, input is captured directly
 	fmt.Print("Enter choice (1-4): ")
 	var input string
-	fmt.Scanln(&input)
+	fmt.Scanf("%s", &input)
 
-	// try parse int
+	// Try to parse the input into an integer
 	i, err := strconv.Atoi(input)
 	if err != nil || !xslices.Contains(validRange, i) {
-		fmt.Printf("invalid input \"%s\" out of range, try again: \n", input)
+		fmt.Printf("Invalid input \"%s\" out of range, try again: \n", input)
 		return awaitAction(validRange)
 	}
 	return reviewer.ActionFromString(input)
