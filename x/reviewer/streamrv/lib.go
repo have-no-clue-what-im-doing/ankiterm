@@ -37,24 +37,29 @@ func Execute(am *automata.Automata, deck string) {
 			}
 			panic(err)
 		}
-		if err != nil {
+
+		if card == nil {
 			fmt.Println("No more cards.")
 			return
 		}
 
+		// Print question only once
 		fmt.Printf("\n[REVIEW MODE]\n")
 		fmt.Println(format(card.Question))
-		fmt.Println("\n[ENTER] Show Answer")
+		fmt.Println("\n[Press any key to Show Answer]")
+		awaitEnter() // Wait for input to show answer
 
-		awaitEnter()
+		// After input, print answer
 		fmt.Print("\n---\n")
 		fmt.Println(format(card.Answer))
 
+		// Show answer options
 		lookup := []string{"Again", "Hard", "Good", "Easy"}
 		for i, button := range card.Buttons {
 			fmt.Printf("[%d] %s (%s)\n", button, lookup[i], card.NextReviews[i])
 		}
 
+		// Get user action for card answer
 		action := awaitAction(am.CurrentCard().Buttons)
 		switch code := action.GetCode(); code {
 		case reviewer.ActionAbort:
@@ -69,31 +74,23 @@ func Execute(am *automata.Automata, deck string) {
 	}
 }
 
+// Function to clear the terminal screen
 func clearScreen() {
 	fmt.Print("\033[H\033[2J")
 }
 
 func awaitEnter() {
+	// Wait for any key press to continue
 	var input string
 	fmt.Scanln(&input)
 }
 
 func awaitAction(validRange []int) reviewer.Action {
+	// Wait for user to select action
 	print("awaitAction")
 	var input string
 	fmt.Scanln(&input)
 
-	// try parse int
+	// Try to parse input into an integer
 	i, err := strconv.Atoi(input)
-	if err != nil || !xslices.Contains(validRange, i) {
-		fmt.Printf("invalid input \"%s\" out of range, try again: \n", input)
-		return awaitAction(validRange)
-	}
-	return reviewer.ActionFromString(input)
-}
-
-func format(text string) string {
-	text = xmisc.PurgeStyle(text)
-	text = xmisc.TtyColor(text)
-	return text
-}
+	if err != nil || !xslices.Contains(val
