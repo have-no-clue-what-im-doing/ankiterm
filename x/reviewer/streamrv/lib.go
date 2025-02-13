@@ -87,10 +87,21 @@ func awaitEnter() {
 
 func awaitAction(validRange []int) reviewer.Action {
 	// Wait for user to select action
-	print("awaitAction")
+	fmt.Print("awaitAction") // Changed from print to fmt.Print
 	var input string
 	fmt.Scanln(&input)
 
 	// Try to parse input into an integer
 	i, err := strconv.Atoi(input)
-	if err != nil || !xslices.Contains(val
+	if err != nil || !xslices.Contains(validRange, i) {
+		fmt.Printf("Invalid input \"%s\" out of range, try again: \n", input)
+		return awaitAction(validRange)
+	}
+	return reviewer.ActionFromString(input)
+}
+
+func format(text string) string {
+	text = xmisc.PurgeStyle(text)
+	text = xmisc.TtyColor(text)
+	return text
+}
